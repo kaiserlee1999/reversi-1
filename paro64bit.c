@@ -655,21 +655,21 @@ static int finalScore (BITSET64 c, BITSET64 u)
  *  displayBestMoves - dumps the anticipated move sequence
  */
 
-static void displayBestMoves (int depth, int o)
+static void displayBestMoves(int depth, int o)
 {
-  int i;
+    int i;
 
-  printf("I'm anticipating the move sequence:\n");
-  for (i=depth; i>=0; i--) {
-    if (o == WHITE)
-      printf("white ");
-    else
-      printf("black ");
-    o = 1-o;
-    if (bestMove[i] != -1)
-      printf("%c%d\n",
-	     (char)(bestMove[i] % MAXX)+'a', bestMove[i] / MAXY+1);
-  }
+    printf("I'm anticipating the move sequence:\n");
+    for (i = depth; i >= 0; i--) {
+        if (o == WHITE)
+            printf("white ");
+        else
+            printf("black ");
+        o = 1 - o;
+        if (bestMove[i] != -1)
+            printf("%c%d\n",
+                (char)(bestMove[i] % MAXX) + 'a', bestMove[i] / MAXY + 1);
+    }
 }
 #endif
 
@@ -684,32 +684,92 @@ void setupIPC (void)
 
 
 #if !defined(SEQUENTIAL)
-int parallelSearch (int *totalExplored, int *move,
-		    int best, int *l, int noOfMoves,
-		    BITSET64 c, BITSET64 u, int noPlies, int o, int minscore, int maxscore)
+//parallel search is the parallel implmentation of sequential search
+int parallelSearch(int* totalExplored, int* move,
+    int best, int *l, int noOfMoves,
+    BITSET64 c, BITSET64 u, int noPlies, int o, int minscore, int maxscore)
 {
-  /* your code goes here.  */
-}
+
+      //creating a source and sink process, the source continually forks children
+      //one for every move, providing a processor is available. The sink collects the results and returns best move.
+    int pid = fork(); 
+    if (pid == 0)
+        //the parent is forking and then detecting whether it's child, if child, then the child comes in here and it for every move it waits for a process to become available
+        // it then forks, creates a sub child, child then use the alpha beta to search through
+    {
+        //child is the source which spawn each move on a seperate core
+        for (i = 0; i < noOfMoves; i++)
+        {
+            multiprocessor_wait(processorAvailable);//wait for a processor to become available, limits the number of calls being active at a time
+            if (fork() == 0) //fork, then if we are the child then we run the expensive alpha beta, fork occur linux will put on the available core
+            {
+                //child must search move i
+                move_score = alphaBeta(l[i], c, u, noPlies, o, minscore, maxscore);//could take 10s of seconds
+                //use alphaBeta to search move i
+                
+                
+                //child then dies, cleans up at the end of fallout
+                //at the end of the for loop, first gen child dies
+                mailbox_send(move_score, i, positions_explored);//pass move_score, i, positions_explored back via mailbox
+                multiprocessor_signal(processorAvailable);//this core is now available
+                exit(0);
+            }
+        }
+        exit(0);
+
+    }
+    //code above guarantees the parents of the original parents will do the fork, then go straight to the else (code below), then we'll wait for the results to come in
+    
+
 #endif
 
+    else
+    {
+        //parent is the sink, which waits for any move to be returned and remembers the best move score
+        int i, move_score, move_index, positions_explored;
 
+        for (i = 0; i < noOfMoves; i++)//receive number of move messages
+        {
+            printf("parent waiting for a result\n");
+            mailbox_rec(barrier, &move_score, &move_index, &posItions_explored);// barrier is the mailbox itself, move score is the result, move index which is i coming back (passing i into the child, once it finishes child will say its child number), positions explored is the number of different board positions its evaluated
+            printf("...parent has received a result: move %d has a score of %d after exploring %d positions\n"
+                move_index, move_score, positions_explored);
+            *totalExplored += positions_explored; //add count to the running total
+            if (move_score > best)//if move score is better than best
+            {
+                best = move_score; //set best equal to move score
+                *move = l[move_index];//set pointer variable move equal to list of score at move index
+            }
+        }
+
+    }
+    return best;
+}
+
+//original code (parallel search is the parallel implmentation of sequential search)
 int sequentialSearch (int *totalExplored, int *move,
 		      int best, int *l, int noOfMoves,
 		      BITSET64 c, BITSET64 u, int noPlies, int o, int minscore, int maxscore)
-{
-  int i, try;
 
-  for (i=0; i < noOfMoves; i++)
+{
+  int i, move_score; //declares variable i of type int, and move score
+
+  for (i=0; i < noOfMoves; i++) // for loop =  set i to the value 0; from i to num of moves, increment i by 1 each time
     {
-      try = alphaBeta (l[i], c, u, noPlies, o, minscore, maxscore);
-      if (try > best)
-	{
-	  best = try;
-	  *move = l[i];
+      move_score = alphaBeta (l[i], c, u, noPlies, o, minscore, maxscore);//could take 10s of seconds or minutes
+     
+      //mailbox here...
+
+      //parent below...
+
+      if (move_score > best) //if move score is better than best
+    {
+       best = move_score; //set best equal to move score
+	  *move = l[i];//set pointer variable move equal to list of score at index i
 	}
     }
-  *totalExplored = positionsExplored;
-  return best;
+  *totalExplored = positionsExplored; //sets  pointer variable totl explored equal to position explored
+  return best; // returns best score
 }
 
 
@@ -829,10 +889,10 @@ int main()
     else
       f++;
 # else
-    if (computerMove(Colours, Used, 0))
-      f = 0;
-    else
-      f++;
+      if (computerMove(Colours, Used, 0))
+          f = 0;
+      else
+          f++;
 # endif
     if (f == 2)
       break;

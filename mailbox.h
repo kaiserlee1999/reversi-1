@@ -18,6 +18,7 @@
 #include <semaphore.h>
 
 #include "multiprocessor.h"
+#define MAX_MAILBOX_DATA 100 //constant set at 100
 
 typedef struct triple_t {
   int result;
@@ -27,7 +28,10 @@ typedef struct triple_t {
 
 
 typedef struct mailbox_t {
-  triple data;
+  triple data[MAX_MAILBOX_DATA];//array of 100 elements, each element is a triple
+  int in;//in index
+  int out;//out index
+  //implementing a bounded buffer, circulation buffer, putting data in at in slot and out of the out slot
   sem_t *item_available;    /* are there data in the mailbox?  */
   sem_t *space_available;   /* space for more data in the mailbox.  */
   sem_t *mutex;             /* access to the mailbox.  */
