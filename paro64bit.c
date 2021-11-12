@@ -711,7 +711,7 @@ int parallelSearch(int* totalExplored, int* move,
                 
                 //child then dies, cleans up at the end of fallout
                 //at the end of the for loop, first gen child dies
-                mailbox_send(barrier, move_score, i, positions_explored);//pass move_score, i, positions_explored back via mailbox
+                mailbox_send(barrier, move_score, i, positionsExplored);//pass move_score, i, positions_explored back via mailbox
                 multiprocessor_signal(processorAvailable);//this core is now available
                 exit(0);
             }
