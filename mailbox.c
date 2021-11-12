@@ -89,13 +89,13 @@ void mailbox_send (mailbox *mbox, int result, int move_no, int positions_explore
 {
   
     multiprocessor_wait (mbox->space_available);
-    multipocessor_wait(mbox->mutex);
-    mbox->data[mbox->in].result = result;
+    multiprocessor_wait(mbox->mutex);
+    mbox->data[mbox->in].result = result; //add data to buffer
     mbox->data[mbox->in].move_no = move_no;
     mbox->data[mbox->in].positions_explored = positions_explored;
-    mbox->in = [mbox->out + 1] % MAX_MAILBOX_DATA;
-    multiprocessor_signal(mbox->mutex);
-    multiprocessor_signal(mbox->item available);
+    mbox->in = (mbox->in + 1) % MAX_MAILBOX_DATA;
+    multiprocessor_signal(mbox->mutex);//add item to buffer
+    multiprocessor_signal(mbox->item_available);
 }
 
 
@@ -104,16 +104,17 @@ void mailbox_send (mailbox *mbox, int result, int move_no, int positions_explore
  *        mailbox mbox.
  */
 
+//mailbox_rec is a consumer with the shared buffer and it needs to retrieve the : result, move_no and positions_explored from the shared buffer.
 void mailbox_rec (mailbox *mbox,
 		  int *result, int *move_no, int *positions_explored)
 {
   
     multiprocessor_wait(mbox->item_available);
     multiprocessor_wait(mbox->mutex);
-    *result = mbox->[mbox->out].result;
+    *result = mbox->data[mbox->out].result;//removes data from buffer
     *move_no = mbox->data[mbox->out].move_no;
     *positions_explored = mbox->data[mbox->out].positions_explored;
-    mbox->out = [mbox->out + 1] % MAX_MAILBOX_DATA;
-    multiprocessor_signal(mbox->mutex);
+    mbox->out = (mbox->out + 1) % MAX_MAILBOX_DATA;
+    multiprocessor_signal(mbox->mutex);//remove item from the buffer
     multiprocessor_signal(mbox->space_available);
 }

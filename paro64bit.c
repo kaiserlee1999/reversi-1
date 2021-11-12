@@ -684,12 +684,12 @@ void setupIPC (void)
 
 
 #if !defined(SEQUENTIAL)
-//parallel search is the parallel implmentation of sequential search
+//parallel search is the parallel implementation of sequential search
 int parallelSearch(int* totalExplored, int* move,
     int best, int *l, int noOfMoves,
     BITSET64 c, BITSET64 u, int noPlies, int o, int minscore, int maxscore)
 {
-
+    //implementation of parallel primitives spawns a number of children to search the game tree in parallel
       //creating a source and sink process, the source continually forks children
       //one for every move, providing a processor is available. The sink collects the results and returns best move.
     int pid = fork(); 
@@ -698,19 +698,20 @@ int parallelSearch(int* totalExplored, int* move,
         // it then forks, creates a sub child, child then use the alpha beta to search through
     {
         //child is the source which spawn each move on a seperate core
-        for (i = 0; i < noOfMoves; i++)
+        for (int i = 0; i < noOfMoves; i++)
         {
             multiprocessor_wait(processorAvailable);//wait for a processor to become available, limits the number of calls being active at a time
             if (fork() == 0) //fork, then if we are the child then we run the expensive alpha beta, fork occur linux will put on the available core
             {
                 //child must search move i
-                move_score = alphaBeta(l[i], c, u, noPlies, o, minscore, maxscore);//could take 10s of seconds
+               int move_score = alphaBeta(l[i], c, u, noPlies, o, minscore, maxscore);//could take 10s of seconds
                 //use alphaBeta to search move i
-                
+               
+
                 
                 //child then dies, cleans up at the end of fallout
                 //at the end of the for loop, first gen child dies
-                mailbox_send(move_score, i, positions_explored);//pass move_score, i, positions_explored back via mailbox
+                mailbox_send(barrier, move_score, i, positions_explored);//pass move_score, i, positions_explored back via mailbox
                 multiprocessor_signal(processorAvailable);//this core is now available
                 exit(0);
             }
@@ -731,8 +732,8 @@ int parallelSearch(int* totalExplored, int* move,
         for (i = 0; i < noOfMoves; i++)//receive number of move messages
         {
             printf("parent waiting for a result\n");
-            mailbox_rec(barrier, &move_score, &move_index, &posItions_explored);// barrier is the mailbox itself, move score is the result, move index which is i coming back (passing i into the child, once it finishes child will say its child number), positions explored is the number of different board positions its evaluated
-            printf("...parent has received a result: move %d has a score of %d after exploring %d positions\n"
+            mailbox_rec(barrier, &move_score, &move_index, &positions_explored);// barrier is the mailbox itself, move score is the result, move index which is i coming back (passing i into the child, once it finishes child will say its child number), positions explored is the number of different board positions its evaluated
+            printf("...parent has received a result: move %d has a score of %d after exploring %d positions\n",
                 move_index, move_score, positions_explored);
             *totalExplored += positions_explored; //add count to the running total
             if (move_score > best)//if move score is better than best
